@@ -20,13 +20,13 @@ class MetaOptimizer(nn.Module):
         self.hidden_size = hidden_size
 
         self.linear1 = nn.Linear(3, hidden_size)
-        self.ln1 = LayerNorm1D(hidden_size)
+        self.ln1 = LayerNorm1D(hidden_size)  
 
         self.lstms = []
         for i in range(num_layers):
             self.lstms.append(LayerNormLSTMCell(hidden_size, hidden_size))
 
-        self.linear2 = nn.Linear(hidden_size, 1)
+        self.linear2 = nn.Linear(hidden_size, 1) 
         self.linear2.weight.data.mul_(0.1)
         self.linear2.bias.data.fill_(0.0)
 
@@ -54,7 +54,7 @@ class MetaOptimizer(nn.Module):
 
     def forward(self, x):
         # Gradients preprocessing
-        x = F.tanh(self.ln1(self.linear1(x)))
+        x = F.tanh(self.ln1(self.linear1(x))) # FC layer from 3 inputs to hidden_size and then Layer Normalized
 
         for i in range(len(self.lstms)):
             if x.size(0) != self.hx[i].size(0):

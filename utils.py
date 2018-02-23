@@ -1,6 +1,7 @@
 import math
 import torch
 
+# This file is used when gradients become small enough. Read Appendix A of the paper. 
 def preprocess_gradients(x):
     p = 10
     eps = 1e-6
