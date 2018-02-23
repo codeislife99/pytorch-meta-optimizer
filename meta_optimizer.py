@@ -46,7 +46,7 @@ class MetaOptimizer(nn.Module):
         else:
             self.hx = []
             self.cx = []
-            for i in range(len(self.lstms)):
+            for i in range(len(self.lstms)): # Initialize hidden and cell state for each layer of the LSTM 
                 self.hx.append(Variable(torch.zeros(1, self.hidden_size)))
                 self.cx.append(Variable(torch.zeros(1, self.hidden_size)))
                 if use_cuda:
@@ -56,13 +56,14 @@ class MetaOptimizer(nn.Module):
         # Gradients preprocessing
         x = F.tanh(self.ln1(self.linear1(x))) # FC layer from 3 inputs to hidden_size and then Layer Normalized
 
-        for i in range(len(self.lstms)):
-            if x.size(0) != self.hx[i].size(0):
+        for i in range(len(self.lstms)): # Iterate over each layer
+            if x.size(0) != self.hx[i].size(0): 
                 self.hx[i] = self.hx[i].expand(x.size(0), self.hx[i].size(1))
                 self.cx[i] = self.cx[i].expand(x.size(0), self.cx[i].size(1))
-
+            # Take the hidden state of the last layer and use it for the next layer. 
+            # Should have used an LSTM instead of an LSTMCell ? 
             self.hx[i], self.cx[i] = self.lstms[i](x, (self.hx[i], self.cx[i]))
-            x = self.hx[i]
+            x = self.hx[i] 
 
         x = self.linear2(x)
         return x.squeeze()
@@ -72,16 +73,16 @@ class MetaOptimizer(nn.Module):
         grads = []
 
         for module in model_with_grads.children():
-            grads.append(module._parameters['weight'].grad.data.view(-1))
-            grads.append(module._parameters['bias'].grad.data.view(-1))
+            grads.append(module._parameters['weight'].grad.data.view(-1)) # Flattening gradients of weights
+            grads.append(module._parameters['bias'].grad.data.view(-1)) # Flattening gradients of biases
 
-        flat_params = self.meta_model.get_flat_params()
-        flat_grads = preprocess_gradients(torch.cat(grads))
+        flat_params = self.meta_model.get_flat_params() # Flattening parameters 
+        flat_grads = preprocess_gradients(torch.cat(grads)) # Preprocessing gradients as per Appendix A and flattening them
 
-        inputs = Variable(torch.cat((flat_grads, flat_params.data), 1))
+        inputs = Variable(torch.cat((flat_grads, flat_params.data), 1)) # Concatenating Flat gradients and parameters
 
         # Meta update itself
-        flat_params = flat_params + self(inputs)
+        flat_params = flat_params + self(inputs) # This adds the gradients 
 
         self.meta_model.set_flat_params(flat_params)
 
@@ -95,13 +96,15 @@ class FastMetaOptimizer(nn.Module):
         super(FastMetaOptimizer, self).__init__()
         self.meta_model = model
 
-        self.linear1 = nn.Linear(6, 2)
+        self.linear1 = nn.Linear(6, 2) # Remember that linear Layer in PyTorch is [input x weight.transpose(0,1) + bias]
         self.linear1.bias.data[0] = 1
 
     def forward(self, x):
         # Gradients preprocessing
         x = F.sigmoid(self.linear1(x))
-        return x.split(1, 1)
+        # Split the tensor into different columns
+        return x.split(1, 1) # Draw a vertical split after 1 column each(1st argument is 1) column(2nd argument: dim = 1)
+
 
     def reset_lstm(self, keep_states=False, model=None, use_cuda=False):
         self.meta_model.reset()
@@ -122,14 +125,14 @@ class FastMetaOptimizer(nn.Module):
         grads = []
 
         for module in model_with_grads.children():
-            grads.append(module._parameters['weight'].grad.data.view(-1))
-            grads.append(module._parameters['bias'].grad.data.view(-1))
+            grads.append(module._parameters['weight'].grad.data.view(-1)) # Flattening the weights
+            grads.append(module._parameters['bias'].grad.data.view(-1)) # Flattening the biases
 
         flat_params = self.meta_model.get_flat_params()
-        flat_grads = torch.cat(grads)
+        flat_grads = torch.cat(grads) 
 
-        self.i = self.i.expand(flat_params.size(0), 1)
-        self.f = self.f.expand(flat_params.size(0), 1)
+        self.i = self.i.expand(flat_params.size(0), 1) # Specifies the dimension into which it will be expanded to 
+        self.f = self.f.expand(flat_params.size(0), 1) # ''do''
 
         loss = loss.expand_as(flat_grads)
         inputs = Variable(torch.cat((preprocess_gradients(flat_grads), flat_params.data, loss), 1))
